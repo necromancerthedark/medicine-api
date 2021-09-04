@@ -29,3 +29,7 @@ def hello_world():
 #    print("Total Products = ", len(finalProducts))
 
     return jsonify(finalProducts)
+
+
+if __name__ == "__main__":
+    app.run()
