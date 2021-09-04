@@ -1,6 +1,63 @@
 import re
 import requests
 from bs4 import BeautifulSoup
+import itertools
+import concurrent.futures
+
+MAX_THREAD = 40
+
+products = {}
+
+
+def scraperdata(product, flag, header):
+    regexTitle = re.compile('.*style__pro-title.*')
+    regexLink = re.compile('.*style__product-link.*')
+    regexQuantity = re.compile('.*style__pack-size.*')
+    regexRating = re.compile('.*CardRatingDetail.*')
+    regexPrice = re.compile('.*style__price-tag.*')
+    regexDisccount = re.compile('.*style__off-badge.*')
+    # scrapping attributes
+    if flag == 1:
+        title = product.find('span', class_=regexTitle).text
+    else:
+        title = product.find('div', class_=regexTitle).text
+
+    if flag == 1:
+        link = link = "https://www.1mg.com" + product.find('a')['href']
+    else:
+        link = "https://www.1mg.com" + \
+            product.find('a', class_=regexLink)['href']
+    # with concurrent.futures.ThreadPoolExecutor(max_workers=threads) as executor:
+    data = scrapIndividualProduct(link, header)
+    # data = executor.map(scrapIndividualProduct, link, header)
+
+    quantity = product.find('div', class_=regexQuantity).text
+
+    ratings = product.find('span', class_=regexRating)
+    ratings = ratings.text if ratings != None else None  # if rating is not available
+
+    price = product.find('div', class_=regexPrice).text
+
+    discount = product.find('span', class_=regexDisccount)
+    # if discount is not available
+    discount = discount.text if discount != None else None
+
+    # storing details
+    object = {}  # individual product item
+    object['title'] = title
+    object['link'] = link
+    object['quantity'] = quantity
+    object['ratings'] = ratings
+    object['price'] = price
+    object['discount'] = discount
+    object['composition'] = data['composition']
+    object['usages'] = data['usages']
+    object['sideEffects'] = data['sideEffects']
+    object['safetyAdvice'] = data['safetyAdvice']
+    object['alternateBrand'] = data['alternateBrand']
+    object['expiry'] = data['expiry']
+
+    products[title] = object  # storing an individual product
 
 
 def scrapIndividualProduct(url, header):
@@ -60,6 +117,7 @@ def scrapIndividualProduct(url, header):
 
 
 def scrapData(soup, header):
+
     flag = 0
     regexProductBox1 = re.compile(
         '.*style__product-box.*')  # for combiflam type UI
@@ -72,56 +130,9 @@ def scrapData(soup, header):
         flag = 1
         scrappedProducts = soup.find_all('div', class_=regexProductBox2)
 
-    regexTitle = re.compile('.*style__pro-title.*')
-    regexLink = re.compile('.*style__product-link.*')
-    regexQuantity = re.compile('.*style__pack-size.*')
-    regexRating = re.compile('.*CardRatingDetail.*')
-    regexPrice = re.compile('.*style__price-tag.*')
-    regexDisccount = re.compile('.*style__off-badge.*')
-
-    products = {}
-    for index, product in enumerate(scrappedProducts):
-        # scrapping attributes
-
-        if flag == 1:
-            title = product.find('span', class_=regexTitle).text
-        else:
-            title = product.find('div', class_=regexTitle).text
-
-        if flag == 1:
-            link = link = "https://www.1mg.com" + product.find('a')['href']
-        else:
-            link = "https://www.1mg.com" + \
-                product.find('a', class_=regexLink)['href']
-
-        data = scrapIndividualProduct(link, header)
-
-        quantity = product.find('div', class_=regexQuantity).text
-
-        ratings = product.find('span', class_=regexRating)
-        ratings = ratings.text if ratings != None else None  # if rating is not available
-
-        price = product.find('div', class_=regexPrice).text
-
-        discount = product.find('span', class_=regexDisccount)
-        # if discount is not available
-        discount = discount.text if discount != None else None
-
-        # storing details
-        object = {}  # individual product item
-        object['title'] = title
-        object['link'] = link
-        object['quantity'] = quantity
-        object['ratings'] = ratings
-        object['price'] = price
-        object['discount'] = discount
-        object['composition'] = data['composition']
-        object['usages'] = data['usages']
-        object['sideEffects'] = data['sideEffects']
-        object['safetyAdvice'] = data['safetyAdvice']
-        object['alternateBrand'] = data['alternateBrand']
-        object['expiry'] = data['expiry']
-
-        products[title] = object  # storing an individual product
+    threads = min(MAX_THREAD, len(scrappedProducts))
+    with concurrent.futures.ThreadPoolExecutor(max_workers=threads) as executor:
+        executor.map(scraperdata, scrappedProducts,
+                     itertools.repeat(flag), itertools.repeat(header))
 
     return products
