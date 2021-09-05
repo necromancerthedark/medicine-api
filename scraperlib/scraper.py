@@ -117,7 +117,7 @@ def scrapIndividualProduct(url, header):
 
 
 def scrapData(soup, header):
-
+    products.clear()
     flag = 0
     regexProductBox1 = re.compile(
         '.*style__product-box.*')  # for combiflam type UI
